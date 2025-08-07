@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_web_qrcode_scanner/flutter_web_qrcode_scanner.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart' show kIsWeb;
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
-import 'dart:convert';
 
 void main() {
   runApp(const MyApp());
@@ -30,9 +32,20 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String? qrResult;
 
-  void _getExcelWeb(String fechaInicio, String fechaFin) {
+  Future<void> _getExcel(String fechaInicio, String fechaFin) async {
     final url = "https://sephora.clase.digital/registro/getExcel/$fechaInicio/$fechaFin";
-    html.window.open(url, '_blank');
+
+    if (kIsWeb) {
+      // En web abre en nueva pestaña
+      html.window.open(url, '_blank');
+    } else {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        throw 'No se pudo abrir el enlace: $url';
+      }
+    }
   }
 
   @override
@@ -63,16 +76,19 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () async {
-                _getExcelWeb('2025-06-30', '2025-08-07');
+                _getExcel('2025-07-31', '2025-08-07');
               },
               child: const Text('Excel'),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
+                // Navega a pantalla de usuarios
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const UsuariosScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const UsuariosScreen(),
+                  ),
                 );
               },
               child: const Text('Usuarios'),
@@ -111,7 +127,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         height: MediaQuery.of(context).size.height,
         onGetResult: (result) {
           _controller.stopVideoStream();
-          Navigator.pop(context, result);
+          Navigator.pop(context, result); // Regresa con resultado
         },
         onError: (error) {
           debugPrint('Error: ${error.message}');
@@ -132,28 +148,9 @@ class UsuariosScreen extends StatefulWidget {
 }
 
 class _UsuariosScreenState extends State<UsuariosScreen> {
-  List<Map<String, dynamic>> usuarios = [];
+  List<dynamic> usuarios = [];
   bool loading = true;
-
-  Future<void> fetchUsuarios() async {
-    try {
-      final response = await http.get(Uri.parse('https://sephora.clase.digital/seg_usuario/getAll/'));
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        setState(() {
-          usuarios = List<Map<String, dynamic>>.from(data);
-          loading = false;
-        });
-      } else {
-        throw Exception('Error al obtener usuarios');
-      }
-    } catch (e) {
-      debugPrint('Error al obtener usuarios: $e');
-      setState(() {
-        loading = false;
-      });
-    }
-  }
+  String? error;
 
   @override
   void initState() {
@@ -161,23 +158,64 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
     fetchUsuarios();
   }
 
+  Future<void> fetchUsuarios() async {
+    try {
+      final response = await http.get(Uri.parse('https://sephora.clase.digital/seg_usuario/getAll/'));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        if (data is Map && data.containsKey('result')) {
+          setState(() {
+            usuarios = data['result'];
+            loading = false;
+          });
+        } else {
+          setState(() {
+            error = 'Respuesta inesperada de la API';
+            loading = false;
+          });
+        }
+      } else {
+        setState(() {
+          error = 'Error en la respuesta: ${response.statusCode}';
+          loading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        error = 'Error al obtener usuarios: $e';
+        loading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (loading) {
+      return Scaffold(
+        appBar:  AppBar(title: const Text('Usuarios')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (error != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Usuarios')),
+        body: Center(child: Text(error!)),
+      );
+    }
     return Scaffold(
       appBar: AppBar(title: const Text('Usuarios')),
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView.builder(
-              itemCount: usuarios.length,
-              itemBuilder: (context, index) {
-                final usuario = usuarios[index];
-                return ListTile(
-                  leading: const Icon(Icons.person),
-                  title: Text(usuario['nombre'] ?? 'Sin nombre'),
-                  subtitle: Text(usuario['email'] ?? 'Sin email'),
-                );
-              },
-            ),
+      body: ListView.builder(
+        itemCount: usuarios.length,
+        itemBuilder: (context, index) {
+          final user = usuarios[index];
+          return ListTile(
+            title: Text(user['nombre'] ?? ''),
+            subtitle: Text(user['email'] ?? ''),
+          );
+        },
+      ),
     );
   }
 }

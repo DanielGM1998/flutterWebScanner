@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_web_qrcode_scanner/flutter_web_qrcode_scanner.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() {
   runApp(const MyApp());
@@ -26,6 +29,15 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String? qrResult;
 
+  Future<void> _getExcel(String fechaInicio, String fechaFin) async {
+    final url = Uri.parse("https://sephora.clase.digital/registro/getExcel/$fechaInicio/$fechaFin");
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url);
+    } else {
+      throw 'No se pudo abrir el enlace: $url';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -50,6 +62,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
               },
               child: const Text('Escanear QR'),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () async {
+                await _getExcel('2025-06-30', '2025-08-07');
+              },
+              child: const Text('Excel'),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const UsuariosScreen()),
+                );
+              },
+              child: const Text('Usuarios'),
             ),
             const SizedBox(height: 20),
             Text(
@@ -85,7 +114,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         height: MediaQuery.of(context).size.height,
         onGetResult: (result) {
           _controller.stopVideoStream();
-          Navigator.pop(context, result); // ← Regresa a la pantalla principal con el valor escaneado
+          Navigator.pop(context, result);
         },
         onError: (error) {
           debugPrint('Error: ${error.message}');
@@ -94,6 +123,64 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           debugPrint('Permiso denegado para usar la cámara');
         },
       ),
+    );
+  }
+}
+
+class UsuariosScreen extends StatefulWidget {
+  const UsuariosScreen({super.key});
+
+  @override
+  State<UsuariosScreen> createState() => _UsuariosScreenState();
+}
+
+class _UsuariosScreenState extends State<UsuariosScreen> {
+  List<Map<String, dynamic>> usuarios = [];
+  bool loading = true;
+
+  Future<void> fetchUsuarios() async {
+    try {
+      final response = await http.get(Uri.parse('https://sephora.clase.digital/seg_usuario/getAll'));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          usuarios = List<Map<String, dynamic>>.from(data);
+          loading = false;
+        });
+      } else {
+        throw Exception('Error al obtener usuarios');
+      }
+    } catch (e) {
+      debugPrint('Error al obtener usuarios: $e');
+      setState(() {
+        loading = false;
+      });
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    fetchUsuarios();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Usuarios')),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.builder(
+              itemCount: usuarios.length,
+              itemBuilder: (context, index) {
+                final usuario = usuarios[index];
+                return ListTile(
+                  leading: const Icon(Icons.person),
+                  title: Text(usuario['nombre'] ?? 'Sin nombre'),
+                  subtitle: Text(usuario['email'] ?? 'Sin email'),
+                );
+              },
+            ),
     );
   }
 }

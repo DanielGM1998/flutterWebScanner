@@ -10,66 +10,89 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(
-      title: 'QR Scanner Web',
-      home: ScannerScreen(),
+      title: 'QR Scanner Navegación',
+      home: HomeScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
-class ScannerScreen extends StatefulWidget {
-  const ScannerScreen({super.key});
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
   @override
-  State<ScannerScreen> createState() => _ScannerScreenState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _ScannerScreenState extends State<ScannerScreen> {
-  String? qrData;
+class _HomeScreenState extends State<HomeScreen> {
+  String? qrResult;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pantalla Principal')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ElevatedButton(
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const QRScannerScreen(),
+                  ),
+                );
+
+                if (result != null) {
+                  setState(() {
+                    qrResult = result as String;
+                  });
+                }
+              },
+              child: const Text('Escanear QR'),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              qrResult != null ? 'Resultado: $qrResult' : 'Aún no se escanea nada',
+              style: const TextStyle(fontSize: 18),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class QRScannerScreen extends StatefulWidget {
+  const QRScannerScreen({super.key});
+
+  @override
+  State<QRScannerScreen> createState() => _QRScannerScreenState();
+}
+
+class _QRScannerScreenState extends State<QRScannerScreen> {
   final CameraController _controller = CameraController(autoPlay: true);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Escáner QR Web')),
-      body: Column(
-        children: [
-          Expanded(
-            child: FlutterWebQrcodeScanner(
-              controller: _controller,
-              cameraDirection: CameraDirection.back,
-              stopOnFirstResult: true,
-              onGetResult: (result) {
-                setState(() {
-                  qrData = result;
-                });
-                _controller.stopVideoStream();
-              },
-              // Ancho y alto opcionales, por ejemplo:
-              width: MediaQuery.of(context).size.width,
-              height: MediaQuery.of(context).size.height * 0.6,
-              onError: (error) {
-                debugPrint('Error al escanear QR: ${error.message}');
-              },
-              onPermissionDeniedError: () {
-                debugPrint('Permiso denegado para usar la cámara');
-              },
-            ),
-          ),
-          if (qrData != null)
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text('Resultado: $qrData', style: const TextStyle(fontSize: 18)),
-            ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                qrData = null;
-              });
-              _controller.startVideoStream();
-            },
-            child: const Text('Reiniciar escaneo'),
-          ),
-        ],
+      appBar: AppBar(title: const Text('Escanear QR')),
+      body: FlutterWebQrcodeScanner(
+        controller: _controller,
+        cameraDirection: CameraDirection.back,
+        stopOnFirstResult: true,
+        width: MediaQuery.of(context).size.width,
+        height: MediaQuery.of(context).size.height,
+        onGetResult: (result) {
+          _controller.stopVideoStream();
+          Navigator.pop(context, result); // ← Regresa a la pantalla principal con el valor escaneado
+        },
+        onError: (error) {
+          debugPrint('Error: ${error.message}');
+        },
+        onPermissionDeniedError: () {
+          debugPrint('Permiso denegado para usar la cámara');
+        },
       ),
     );
   }

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_web_qrcode_scanner/flutter_web_qrcode_scanner.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import 'dart:convert';
 
 void main() {
@@ -29,13 +30,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String? qrResult;
 
-  Future<void> _getExcel(String fechaInicio, String fechaFin) async {
-    final url = Uri.parse("https://sephora.clase.digital/registro/getExcel/$fechaInicio/$fechaFin");
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url);
-    } else {
-      throw 'No se pudo abrir el enlace: $url';
-    }
+  void _getExcelWeb(String fechaInicio, String fechaFin) {
+    final url = "https://sephora.clase.digital/registro/getExcel/$fechaInicio/$fechaFin";
+    html.window.open(url, '_blank');
   }
 
   @override
@@ -66,7 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () async {
-                await _getExcel('2025-06-30', '2025-08-07');
+                _getExcelWeb('2025-06-30', '2025-08-07');
               },
               child: const Text('Excel'),
             ),
@@ -140,7 +137,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
 
   Future<void> fetchUsuarios() async {
     try {
-      final response = await http.get(Uri.parse('https://sephora.clase.digital/seg_usuario/getAll'));
+      final response = await http.get(Uri.parse('https://sephora.clase.digital/seg_usuario/getAll/'));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         setState(() {
